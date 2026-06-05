@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CONTEXT: Annotation Validation Tool</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px; color: #1a1a1a; background: #f5f5f3;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    background: #fff; border-bottom: 0.5px solid #ddd;
+    padding: 10px 16px; display: flex; align-items: center;
+    justify-content: space-between; flex-shrink: 0;
+  }
+  .toolbar-title {
+    font-size: 15px; font-weight: 500;
+    background: linear-gradient(90deg, #1a6fb5, #2eaed4);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .toolbar-actions { display: flex; gap: 8px; align-items: center; }
+  button {
+    font-family: inherit; font-size: 12px; padding: 5px 12px;
+    border-radius: 8px; border: 0.5px solid #ccc;
+    background: #f5f5f3; color: #333; cursor: pointer;
+  }
+  button:hover { background: #eee; }
+  .btn-export {
+    border-color: #91c3f0; background: #e8f3fc; color: #1a6fb5;
+  }
+  .btn-export:hover { background: #d5eaf9; }
+  #export-btn:disabled { opacity: 0.4; cursor: not-allowed; background: #f5f5f3; color: #888; border-color: #ccc; }
+  #export-btn:disabled:hover { background: #f5f5f3; }
+  .btn-accept { background: #e6f4ea; color: #2e7d32; border-color: #a5d6a7; }
+  .btn-accept:hover { background: #d0edda; }
+  .btn-reject { background: #fdecea; color: #c62828; border-color: #ef9a9a; }
+  .btn-reject:hover { background: #fad8d6; }
+  .btn-reset  { background: #f5f5f3; color: #666; }
+
+  /* LOAD PANEL */
+  .load-panel {
+    background: #fff; border-bottom: 0.5px solid #ddd;
+    padding: 10px 16px; display: flex; gap: 12px; align-items: flex-end;
+    flex-shrink: 0;
+  }
+  .load-field { display: flex; flex-direction: column; gap: 4px; }
+  .load-field label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+  .load-field input {
+    font-size: 12px; padding: 5px 8px; border: 0.5px solid #ccc;
+    border-radius: 8px; background: #fafafa; color: #1a1a1a; width: 280px;
+  }
+  .load-field input:focus { outline: none; border-color: #91c3f0; }
+  .drop-zone {
+    width: 280px; padding: 8px 12px; border: 1.5px dashed #91c3f0;
+    border-radius: 8px; background: #f0f7fd; color: #1a6fb5;
+    font-size: 12px; cursor: pointer; text-align: center;
+    transition: background 0.15s;
+  }
+  .drop-zone:hover { background: #e0f0fa; }
+  .drop-zone.dragover { background: #d5eaf9; border-color: #1a6fb5; }
+  .drop-zone.ready { background: #e6f4ea; border-color: #a5d6a7; color: #2e7d32; }
+  .load-status { font-size: 11px; color: #888; font-style: italic; align-self: center; }
+
+  /* MAIN */
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* LEFT */
+  .left {
+    width: 300px; flex-shrink: 0;
+    border-right: 0.5px solid #ddd;
+    display: flex; flex-direction: column; background: #fff;
+  }
+  .filters {
+    padding: 10px 12px; border-bottom: 0.5px solid #ddd;
+    display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+  }
+  .filter-label { font-size: 11px; color: #666; font-weight: 500; margin-bottom: 2px; }
+  .filter-row { display: flex; gap: 5px; flex-wrap: wrap; }
+  .chip {
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    border: 0.5px solid #ddd; color: #666;
+    background: #f5f5f3; cursor: pointer; user-select: none;
+  }
+  .chip:hover { background: #eee; }
+  .chip.active { border-color: #91c3f0; background: #e8f3fc; color: #1a6fb5; }
+  .filter-selects { display: flex; gap: 6px; }
+  .filter-selects select {
+    flex: 1; font-size: 11px; padding: 4px 6px;
+    border: 0.5px solid #ddd; border-radius: 8px;
+    background: #f5f5f3; color: #333; cursor: pointer;
+  }
+
+  .ann-list { flex: 1; overflow-y: auto; }
+  .ann-item {
+    padding: 9px 12px; border-bottom: 0.5px solid #eee;
+    cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+  }
+  .ann-item:hover { background: #fafafa; }
+  .ann-item.selected { background: #e8f3fc; }
+  .ann-item-top { display: flex; justify-content: space-between; align-items: center; }
+  .ann-id { font-size: 11px; color: #888; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; }
+  .badge-pending   { background: #f0f0f0; color: #666; border: 0.5px solid #ccc; }
+  .badge-accepted  { background: #e6f4ea; color: #2e7d32; }
+  .badge-rejected  { background: #fdecea; color: #c62828; }
+  .badge-corrected { background: #fff8e1; color: #f57f17; }
+  .ann-item-mid { font-size: 12px; font-weight: 500; color: #1a1a1a; }
+  .ann-item-bot { display: flex; gap: 6px; align-items: center; }
+  .match-tag { font-size: 10px; padding: 1px 6px; border-radius: 6px; border: 0.5px solid #ddd; color: #888; }
+  .match-exact         { border-color: #a5d6a7; color: #2e7d32; background: #e6f4ea; }
+  .match-exact_multiple{ border-color: #ffe082; color: #f57f17; background: #fff8e1; }
+  .match-normalized    { border-color: #ffe082; color: #f57f17; background: #fff8e1; }
+  .match-fuzzy         { border-color: #ce93d8; color: #6a1b9a; background: #f3e5f5; }
+  .match-not_found     { border-color: #ef9a9a; color: #c62828; background: #fdecea; }
+  .match-no_surr_text  { border-color: #ef9a9a; color: #c62828; background: #fdecea; }
+  .match-file_not_found{ border-color: #ef9a9a; color: #c62828; background: #fdecea; }
+  .match-manual        { border-color: #b39ddb; color: #512da8; background: #ede7f6; }
+
+  .add-btn {
+    margin: 10px 12px; padding: 7px; text-align: center;
+    font-size: 12px; border: 0.5px dashed #aaa;
+    border-radius: 8px; color: #888; cursor: pointer; background: none;
+    width: calc(100% - 24px);
+  }
+  .add-btn:hover { background: #fafafa; color: #555; border-color: #888; }
+  .add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .add-btn:disabled:hover { background: none; color: #888; border-color: #aaa; }
+
+  /* RIGHT */
+  .right {
+    flex: 1; display: flex; flex-direction: column;
+    min-width: 0; background: #f5f5f3;
+  }
+
+  /* META PANEL */
+  .meta-panel {
+    background: #fff; border-bottom: 0.5px solid #ddd;
+    padding: 12px 16px; display: flex; flex-direction: column;
+    gap: 10px; flex-shrink: 0;
+  }
+  .meta-empty { font-size: 12px; color: #aaa; font-style: italic; }
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  }
+  .meta-field { display: flex; flex-direction: column; gap: 3px; }
+  .meta-key { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+  .meta-val { font-size: 13px; font-weight: 500; color: #1a1a1a; padding: 3px 0; }
+  .meta-val.editable { border-bottom: 0.5px dashed #aaa; cursor: text; }
+  .meta-val.dropdown { cursor: pointer; }
+  .meta-field input.real-input,
+  .meta-field select.real-select {
+    display: none; font-size: 13px; padding: 3px 6px;
+    border: 0.5px solid #91c3f0; border-radius: 6px;
+    background: #fff; color: #1a1a1a; width: 100%; font-family: inherit;
+  }
+  .action-row { display: flex; gap: 8px; align-items: center; }
+  .action-hint { font-size: 11px; color: #999; margin-left: 4px; font-style: italic; }
+  .surr-text-box {
+    background: #fff8e1; border: 0.5px solid #ffe082;
+    border-radius: 8px; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .surr-text-content {
+    font-size: 12px; color: #5d4037; line-height: 1.5;
+    max-height: 80px; overflow-y: auto;
+  }
+
+  /* MARKDOWN VIEWER */
+  .md-wrapper {
+    flex: 1; overflow-y: auto; padding: 12px; min-height: 0;
+  }
+  .md-viewer {
+    padding: 20px 28px; background: #fff;
+    border-radius: 12px; border: 0.5px solid #ddd; line-height: 1.7;
+  }
+  .md-viewer h1 { font-size: 17px; font-weight: 500; margin: 0 0 12px; }
+  .md-viewer h2 { font-size: 15px; font-weight: 500; margin: 14px 0 8px; }
+  .md-viewer h3 { font-size: 13px; font-weight: 500; margin: 10px 0 6px; }
+  .md-viewer p  { font-size: 13px; margin-bottom: 10px; }
+  .md-viewer table { border-collapse: collapse; font-size: 12px; margin-bottom: 12px; width: 100%; }
+  .md-viewer th, .md-viewer td { border: 0.5px solid #ddd; padding: 4px 8px; text-align: left; }
+  .md-viewer th { background: #f5f5f3; font-weight: 500; }
+  .md-viewer code { font-family: monospace; background: #f5f5f3; padding: 1px 4px; border-radius: 4px; }
+  .md-viewer pre  { background: #f5f5f3; padding: 10px; border-radius: 8px; overflow-x: auto; margin-bottom: 10px; }
+  .md-hint {
+    font-size: 11px; color: #666; margin-bottom: 12px; padding: 6px 10px;
+    background: #f5f5f3; border-radius: 8px;
+    border-left: 2px solid #91c3f0; font-style: italic;
+  }
+  .highlight     { background: #FFF176; border-radius: 2px; padding: 0 1px; }
+  .highlight-alt { background: #FFD180; border-radius: 2px; padding: 0 1px; outline: 1.5px solid #FF9800; outline-offset: 0; }
+
+  /* VIEWER TOOLBAR */
+  .viewer-toolbar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    padding: 7px 12px; border-bottom: 0.5px solid #eee; background: #fafafa;
+  }
+  .btn-raw { font-size: 11px; }
+  .btn-raw-active { background: #e8f3fc; color: #1a6fb5; border-color: #91c3f0; }
+
+  /* SELECTION POPUP */
+  .sel-popup {
+    display: none; position: fixed; z-index: 300;
+    background: #fff; border: 0.5px solid #ccc; border-radius: 8px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.18); padding: 7px; gap: 5px;
+    flex-direction: column; min-width: 180px;
+  }
+  .sel-popup.open { display: flex; }
+  .sel-popup button { font-size: 12px; padding: 5px 10px; text-align: left; }
+
+  /* ALT SURR TEXTS */
+  .alt-surr-box {
+    background: #fff3e0; border: 0.5px solid #ffb74d;
+    border-radius: 8px; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .alt-surr-item {
+    display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: #5d4037;
+  }
+  .alt-surr-text { flex: 1; line-height: 1.5; word-break: break-word; }
+  .alt-surr-del {
+    font-size: 15px; line-height: 1; color: #e65100; cursor: pointer;
+    background: none; border: none; padding: 0 3px; flex-shrink: 0;
+  }
+  .alt-surr-del:hover { color: #c62828; background: none; }
+
+  /* SUMMARY BAR */
+  .summary-bar {
+    padding: 7px 16px; border-top: 0.5px solid #ddd;
+    display: flex; gap: 16px; font-size: 11px; color: #888;
+    background: #fff; flex-shrink: 0;
+  }
+  .summary-bar b { font-weight: 500; }
+  .sum-accepted { color: #2e7d32; }
+  .sum-rejected  { color: #c62828; }
+  .sum-corrected { color: #f57f17; }
+
+  /* ADD MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; border: 0.5px solid #ddd;
+    padding: 20px; width: 480px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .modal h3 { font-size: 14px; font-weight: 500; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-field { display: flex; flex-direction: column; gap: 4px; }
+  .modal-field label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+  .modal-field input, .modal-field select, .modal-field textarea {
+    font-size: 12px; padding: 5px 8px; border: 0.5px solid #ccc;
+    border-radius: 8px; background: #fafafa; color: #1a1a1a; font-family: inherit;
+    width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  }
+  .modal-field textarea { resize: vertical; min-height: 60px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">CONTEXT: Annotation validation tool</span>
+  <div class="toolbar-actions">
+    <button id="export-btn" onclick="exportGroundTruth()" disabled>Export ground truth</button>
+  </div>
+</div>
+
+<div class="load-panel">
+  <div class="load-field">
+    <label>JSONL file</label>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <span id="drop-label">Drop JSONL here or click to browse</span>
+      <input type="file" id="file-input" accept=".jsonl" style="display:none" onchange="handleFileSelect(event)" />
+    </div>
+  </div>
+  <div class="load-field">
+    <label>Markdown root folder</label>
+    <input id="md-root-input" type="text" class="drop-zone"
+           style="cursor:text; text-align:left;"
+           placeholder="Full path to folder containing md_standard/" />
+  </div>
+  <button onclick="loadData()">Load</button>
+  <span class="load-status" id="load-status">No data loaded yet.</span>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="filters">
+      <div>
+        <div class="filter-label">Status</div>
+        <div class="filter-row" id="filter-status">
+          <span class="chip active" onclick="setFilter('status',this)">All</span>
+          <span class="chip" onclick="setFilter('status',this)">Pending</span>
+          <span class="chip" onclick="setFilter('status',this)">Accepted</span>
+          <span class="chip" onclick="setFilter('status',this)">Corrected</span>
+          <span class="chip" onclick="setFilter('status',this)">Rejected</span>
+        </div>
+      </div>
+      <div>
+        <div class="filter-label">Match type</div>
+        <div class="filter-row" id="filter-match">
+          <span class="chip active" onclick="setFilter('match',this)">All</span>
+          <span class="chip" onclick="setFilter('match',this)">Exact</span>
+          <span class="chip" onclick="setFilter('match',this)">Exact multiple</span>
+          <span class="chip" onclick="setFilter('match',this)">Normalized</span>
+          <span class="chip" onclick="setFilter('match',this)">Fuzzy</span>
+          <span class="chip" onclick="setFilter('match',this)">Not found</span>
+          <span class="chip" onclick="setFilter('match',this)">No surr text</span>
+          <span class="chip" onclick="setFilter('match',this)">Manual</span>
+          <span class="chip" onclick="setFilter('match',this)">File not found</span>
+        </div>
+      </div>
+      <div>
+        <div class="filter-label">Narrow by</div>
+        <div class="filter-selects">
+          <select id="filter-pgs" onchange="renderList()"><option value="">All PGS IDs</option></select>
+          <select id="filter-pmc" onchange="onPmcChange()"><option value="">All PMCIDs</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="ann-list" id="ann-list"></div>
+    <button class="add-btn" id="add-ann-btn" onclick="openAddModal()" disabled>+ Add new annotation</button>
+  </div>
+
+  <div class="right">
+    <div class="meta-panel" id="meta-panel">
+      <span class="meta-empty">Select an annotation from the list to start.</span>
+    </div>
+    <div class="viewer-toolbar">
+      <button id="raw-toggle-btn" class="btn-raw" onclick="toggleRawMode()">Show raw markdown</button>
+      <span id="viewer-mode-hint" style="font-size:11px; color:#999; font-style:italic;">
+        Highlight text in the document to set or replace the main surr_text.
+      </span>
+    </div>
+    <div class="md-wrapper">
+      <div class="md-viewer" id="md-viewer">
+        <p style="color:#aaa; font-style:italic;">The document will appear here once an annotation is selected.</p>
+      </div>
+    </div>
+    <div class="summary-bar" id="summary-bar">
+      <span>Load a file to begin.</span>
+    </div>
+  </div>
+</div>
+
+<!-- SELECTION POPUP -->
+<div class="sel-popup" id="sel-popup">
+  <button class="btn-accept" onclick="applySelectionAsMain()">Set as main surr_text</button>
+  <button style="background:#fff3e0; color:#e65100; border-color:#ffb74d;" onclick="applySelectionAsAlt()">Add as alternative</button>
+  <button onclick="closeSelPopup()" style="color:#888; font-size:11px;">Cancel</button>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <h3>Add new annotation</h3>
+    <div class="modal-grid">
+      <div class="modal-field">
+        <label>PGS ID</label>
+        <input id="new-pgs" type="text" placeholder="Type PGS ID..." list="pgs-suggestions" autocomplete="off" />
+        <datalist id="pgs-suggestions"></datalist>
+      </div>
+      <div class="modal-field">
+        <label>OR value</label>
+        <input id="new-or" type="text" placeholder="1.55" />
+      </div>
+      <div class="modal-field">
+        <label>PMCID</label>
+        <select id="new-pmc" onchange="updateFileOptions()"><option value="">Select PMCID...</option></select>
+      </div>
+      <div class="modal-field">
+        <label>File name</label>
+        <select id="new-file"><option value="">Select file...</option></select>
+      </div>
+      <div class="modal-field">
+        <label>Doc type</label>
+        <select id="new-doctype">
+          <option>main</option>
+          <option>suppl</option>
+          <option>other</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Section</label>
+        <input id="new-section" type="text" />
+      </div>
+      <div class="modal-field" style="grid-column: span 2;">
+        <label>Subsection</label>
+        <input id="new-subsection" type="text" />
+      </div>
+      <div class="modal-field" style="grid-column: span 2;">
+        <label>Note</label>
+        <input id="new-note" type="text" />
+      </div>
+      <div class="modal-field" style="grid-column: span 2;">
+        <label>Surrounding text (or highlight in document after saving)</label>
+        <textarea id="new-surr"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeAddModal()">Cancel</button>
+      <button class="btn-accept" onclick="submitNewAnnotation()">Add annotation</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let annotations      = [];
+let selectedId       = null;
+let mdTexts          = {};   // file_path -> raw md text
+let filters          = { status: "all", match: "all" };
+let rawMode          = false;
+let pendingSelection = null; // { text, start, end } — set on mouse-up, consumed by popup
+
+// ── File upload & drag-and-drop ───────────────────────────────────────────
+let uploadedFilename = null;
+
+const dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", e => { dropZone.classList.remove("dragover"); });
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+  if (!file.name.endsWith(".jsonl")) { alert("Please select a .jsonl file."); return; }
+  document.getElementById("drop-label").textContent = "Uploading…";
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/upload-jsonl", { method: "POST", body: formData });
+  const data = await res.json();
+  uploadedFilename = data.filename;
+  document.getElementById("drop-label").textContent = "✓ " + file.name;
+  dropZone.classList.add("ready");
+}
+
+// ── Load ───────────────────────────────────────────────────────────────────
+async function loadData() {
+  const jsonl   = uploadedFilename;
+  const md_root = document.getElementById("md-root-input").value.trim();
+  if (!jsonl || !md_root) { alert("Please select a JSONL file and enter the Markdown root folder path."); return; }
+
+  document.getElementById("load-status").textContent = "Loading…";
+  try {
+    const res = await fetch(`/load?jsonl_filename=${encodeURIComponent(jsonl)}&md_root=${encodeURIComponent(md_root)}`, { method: "POST" });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    const data = await res.json();
+    annotations = await (await fetch("/annotations")).json();
+    populateDropdowns();
+    renderList();
+    updateSummary();
+    document.getElementById("load-status").textContent = `Loaded ${data.loaded} annotations.`;
+    document.getElementById("add-ann-btn").disabled = false;
+    const expBtn = document.getElementById("export-btn");
+    expBtn.disabled = false;
+    expBtn.classList.add("btn-export");
+  } catch(e) {
+    document.getElementById("load-status").textContent = "Error: " + e.message;
+  }
+}
+
+// ── Dropdowns ──────────────────────────────────────────────────────────────
+function updatePgsDropdown(pmc) {
+  const subset = pmc ? annotations.filter(a => a.pmcid === pmc) : annotations;
+  const pgsSet = [...new Set(subset.map(a => a.metadata.pgs_id).filter(Boolean))].sort();
+  const pgsEl  = document.getElementById("filter-pgs");
+  const prev   = pgsEl.value;
+  pgsEl.innerHTML = '<option value="">All PGS IDs</option>' +
+    pgsSet.map(v => `<option value="${v}">${v}</option>`).join("");
+  pgsEl.value = pgsSet.includes(prev) ? prev : "";
+}
+
+function onPmcChange() {
+  updatePgsDropdown(document.getElementById("filter-pmc").value);
+  renderList();
+}
+
+function populateDropdowns() {
+  const pmcSet = [...new Set(annotations.map(a => a.pmcid).filter(Boolean))].sort();
+  const pmcEl  = document.getElementById("filter-pmc");
+  pmcEl.innerHTML = '<option value="">All PMCIDs</option>' +
+    pmcSet.map(v => `<option value="${v}">${v}</option>`).join("");
+  updatePgsDropdown("");
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+function setFilter(type, el) {
+  document.querySelectorAll(`#filter-${type} .chip`).forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  const rawLabel = el.textContent.replace(/\s*\(\d+\)$/, "").trim();
+  filters[type] = rawLabel.toLowerCase().replace(/\s+/g, "_");
+  renderList();
+}
+
+function matchesFilters(ann) {
+  const st = filters.status;
+  const mt = filters.match;
+  const pgs = document.getElementById("filter-pgs").value;
+  const pmc = document.getElementById("filter-pmc").value;
+
+  if (st !== "all" && ann.status !== st) return false;
+  if (mt !== "all") {
+    if (ann.match_type !== mt) return false;
+  }
+  if (pgs && ann.metadata.pgs_id !== pgs) return false;
+  if (pmc && ann.pmcid !== pmc) return false;
+  return true;
+}
+
+// ── Render list ────────────────────────────────────────────────────────────
+function renderList() {
+  const container = document.getElementById("ann-list");
+  const visible   = annotations.filter(matchesFilters);
+  container.innerHTML = "";
+
+  if (visible.length === 0) {
+    container.innerHTML = '<p style="padding:12px; color:#aaa; font-style:italic; font-size:12px;">No annotations match the current filters.</p>';
+    return;
+  }
+
+  visible.forEach(ann => {
+    const div = document.createElement("div");
+    div.className = "ann-item" + (ann.id === selectedId ? " selected" : "");
+    div.onclick = () => selectAnnotation(ann.id);
+    div.innerHTML = `
+      <div class="ann-item-top">
+        <span class="ann-id">${ann.id} · ${ann.pmcid}</span>
+        <span class="badge badge-${ann.status}">${ann.status}</span>
+      </div>
+      <div class="ann-item-mid">${ann.metadata.pgs_id} · OR ${ann.metadata.or_value}</div>
+      <div class="ann-item-bot">
+        <span class="match-tag match-${ann.match_type}">${ann.match_type.replace(/_/g," ")}</span>
+        <span class="ann-id">${ann.metadata.section || ""}${ann.metadata.subsection ? " / " + ann.metadata.subsection : ""}</span>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+// ── Select annotation ──────────────────────────────────────────────────────
+async function selectAnnotation(id) {
+  selectedId = id;
+  renderList();
+  const ann = annotations.find(a => a.id === id);
+  if (!ann) return;
+  renderMetaPanel(ann);
+  await renderMarkdown(ann);
+}
+
+// ── Meta panel ─────────────────────────────────────────────────────────────
+function renderMetaPanel(ann) {
+  const m = ann.metadata;
+  document.getElementById("meta-panel").innerHTML = `
+    <div class="meta-grid">
+      <div class="meta-field">
+        <span class="meta-key">PGS ID</span>
+        <span class="meta-val">${m.pgs_id}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">OR value</span>
+        <span class="meta-val editable" onclick="editText(this,'or_value','${ann.id}')">${m.or_value}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Doc type</span>
+        <span class="meta-val editable dropdown" onclick="editDocType(this,'${ann.id}')">${m.doc_type} ▾</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Confidence</span>
+        <span class="meta-val">${m.confidence}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Section</span>
+        <span class="meta-val editable" onclick="editText(this,'section','${ann.id}')">${m.section || "—"}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Subsection</span>
+        <span class="meta-val editable" onclick="editText(this,'subsection','${ann.id}')">${m.subsection || "—"}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Note</span>
+        <span class="meta-val editable" onclick="editNote(this,'${ann.id}')">${m.note || "—"}</span>
+      </div>
+      <div class="meta-field">
+        <span class="meta-key">Match type</span>
+        <span class="meta-val" style="color:${matchColor(ann.match_type)}">${ann.match_type.replace(/_/g," ")}</span>
+      </div>
+    </div>
+    ${(['not_found','no_surr_text','file_not_found'].includes(ann.match_type) && m.surr_text) ? `
+    <div class="surr-text-box">
+      <span class="meta-key">LLM surrounding text (not found in document)</span>
+      <p class="surr-text-content">${m.surr_text}</p>
+    </div>` : ''}
+    ${(ann.match_type === 'fuzzy' && m.surr_text) ? `
+    <div class="surr-text-box" style="border-color:#ce93d8; background:#f3e5f5;">
+      <span class="meta-key" style="color:#6a1b9a;">LLM surrounding text (verify fuzzy highlight)</span>
+      <p class="surr-text-content">${m.surr_text}</p>
+    </div>` : ''}
+    ${(m.alt_surr_texts && m.alt_surr_texts.length > 0) ? `
+    <div class="alt-surr-box">
+      <span class="meta-key" style="color:#e65100;">Alternative surrounding texts (${m.alt_surr_texts.length})</span>
+      ${m.alt_surr_texts.map((alt, idx) => `
+      <div class="alt-surr-item">
+        <span class="alt-surr-text">${alt.surr_text.length > 120 ? alt.surr_text.substring(0,120) + '…' : alt.surr_text}</span>
+        <button class="alt-surr-del" title="Remove" onclick="removeAltSurrText('${ann.id}', ${idx})">×</button>
+      </div>`).join('')}
+    </div>` : ''}
+    <div class="action-row">
+      <button class="btn-accept" onclick="setStatus('${ann.id}','accepted')">Accept</button>
+      <button class="btn-reject" onclick="setStatus('${ann.id}','rejected')">Reject</button>
+      <button class="btn-reset"  onclick="resetAnnotation('${ann.id}')">Reset to pending</button>
+      <span class="action-hint">Click underlined fields to edit · highlight text in document to replace surr_text</span>
+    </div>`;
+}
+
+function matchColor(mt) {
+  if (mt === "exact") return "#2e7d32";
+  if (mt === "normalized" || mt === "exact_multiple") return "#f57f17";
+  if (mt === "fuzzy") return "#6a1b9a";
+  return "#c62828";
+}
+
+// ── Inline editing ─────────────────────────────────────────────────────────
+function editText(el, field, annId) {
+  const original = el.textContent === "—" ? "" : el.textContent;
+  const input = document.createElement("input");
+  input.type = "text"; input.value = original;
+  input.className = "real-input"; input.style.display = "block";
+  el.style.display = "none";
+  el.parentNode.appendChild(input);
+  input.focus(); input.select();
+
+  async function save() {
+    const val = input.value.trim() || original;
+    el.textContent = val || "—";
+    el.style.display = "";
+    input.remove();
+    await updateField(annId, field, val);
+  }
+  input.addEventListener("blur", save);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") input.blur(); });
+}
+
+function editDocType(el, annId) {
+  const sel = document.createElement("select");
+  sel.className = "real-select"; sel.style.display = "block";
+  ["main","suppl","other"].forEach(opt => {
+    const o = document.createElement("option");
+    o.value = opt; o.textContent = opt;
+    if (el.textContent.startsWith(opt)) o.selected = true;
+    sel.appendChild(o);
+  });
+  el.style.display = "none";
+  el.parentNode.appendChild(sel);
+  sel.focus();
+
+  async function save() {
+    el.textContent = sel.value + " ▾";
+    el.style.display = "";
+    sel.remove();
+    await updateField(annId, "doc_type", sel.value);
+  }
+  sel.addEventListener("blur", save);
+  sel.addEventListener("change", () => sel.blur());
+}
+
+function editNote(el, annId) {
+  const original = el.textContent === "—" ? "" : el.textContent;
+  const input = document.createElement("input");
+  input.type = "text"; input.value = original;
+  input.className = "real-input"; input.style.display = "block";
+  el.style.display = "none";
+  el.parentNode.appendChild(input);
+  input.focus(); input.select();
+
+  async function save() {
+    const val = input.value.trim();
+    el.textContent = val || "—";
+    el.style.display = "";
+    input.remove();
+    const ann = annotations.find(a => a.id === annId);
+    if (!ann) return;
+    ann.metadata.note = val;
+    await fetch(`/update/${annId}`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ note: val })
+    });
+  }
+  input.addEventListener("blur", save);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") input.blur(); });
+}
+
+async function updateField(annId, field, value) {
+  const ann = annotations.find(a => a.id === annId);
+  if (!ann) return;
+  ann.metadata[field] = value;
+  if (ann.status === "pending" || ann.status === "accepted") {
+    ann.status = "corrected";
+  }
+  await fetch(`/update/${annId}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ [field]: value, status: ann.status })
+  });
+  renderList();
+  updateSummary();
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────
+async function resetAnnotation(annId) {
+  const res = await fetch(`/reset/${annId}`, { method: "POST" });
+  if (!res.ok) return;
+  const updated = await res.json();
+  const idx = annotations.findIndex(a => a.id === annId);
+  if (idx !== -1) annotations[idx] = updated;
+  renderList();
+  renderMetaPanel(updated);
+  updateSummary();
+}
+
+async function setStatus(annId, status) {
+  const ann = annotations.find(a => a.id === annId);
+  if (!ann) return;
+  ann.status = status;
+  await fetch(`/update/${annId}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ status })
+  });
+  renderList();
+  renderMetaPanel(ann);
+  updateSummary();
+}
+
+// ── Raw mode toggle ────────────────────────────────────────────────────────
+function toggleRawMode() {
+  rawMode = !rawMode;
+  const btn  = document.getElementById("raw-toggle-btn");
+  const hint = document.getElementById("viewer-mode-hint");
+  if (rawMode) {
+    btn.textContent = "Show rendered";
+    btn.classList.add("btn-raw-active");
+    hint.textContent = "Raw view: highlight to add an alternative surr_text (exact positions — ideal for tables).";
+  } else {
+    btn.textContent = "Show raw markdown";
+    btn.classList.remove("btn-raw-active");
+    hint.textContent = "Highlight text in the document to set or replace the main surr_text.";
+  }
+  const ann = annotations.find(a => a.id === selectedId);
+  if (ann) renderMarkdown(ann);
+}
+
+// ── Markdown viewer ────────────────────────────────────────────────────────
+async function renderMarkdown(ann) {
+  const viewer = document.getElementById("md-viewer");
+  if (!ann.file_path) {
+    viewer.innerHTML = '<p style="color:#aaa;font-style:italic;">No markdown file found for this annotation.</p>';
+    return;
+  }
+
+  if (!mdTexts[ann.file_path]) {
+    try {
+      const res = await fetch(`/markdown?file_path=${encodeURIComponent(ann.file_path)}`);
+      const data = await res.json();
+      mdTexts[ann.file_path] = data.content;
+    } catch(e) {
+      viewer.innerHTML = '<p style="color:#c62828;">Could not load markdown file.</p>';
+      return;
+    }
+  }
+
+  const raw = mdTexts[ann.file_path];
+
+  // ── Collect all spans (primary = yellow, alts = orange) ──────────────────
+  const allSpans = [];
+  let spanData = ann.span && ann.span.length > 0 ? ann.span[0] : null;
+  if (spanData && !Array.isArray(spanData)) spanData = ann.span;
+  if (spanData && spanData.length === 2)
+    allSpans.push({ start: spanData[0], end: spanData[1], cls: "highlight" });
+
+  (ann.metadata.alt_surr_texts || []).forEach(alt => {
+    if (alt.span && Array.isArray(alt.span) && alt.span.length === 2)
+      allSpans.push({ start: alt.span[0], end: alt.span[1], cls: "highlight-alt" });
+  });
+  allSpans.sort((a, b) => a.start - b.start);
+
+  // ── Insert markers into raw text ─────────────────────────────────────────
+  let markedRaw = "";
+  let pos = 0;
+  for (const sp of allSpans) {
+    if (sp.start >= pos && sp.end > sp.start && sp.end <= raw.length) {
+      markedRaw += raw.substring(pos, sp.start);
+      markedRaw += `%%HL_${sp.cls}%%`;
+      markedRaw += raw.substring(sp.start, sp.end);
+      markedRaw += "%%HLEND%%";
+      pos = sp.end;
+    }
+  }
+  markedRaw += raw.substring(pos);
+
+  // ── Build viewer HTML ─────────────────────────────────────────────────────
+  function applyMarkers(s) {
+    return s
+      .replace(/%%HL_highlight%%/g,     '<span class="highlight">')
+      .replace(/%%HL_highlight-alt%%/g, '<span class="highlight-alt">')
+      .replace(/%%HLEND%%/g,            '</span>');
+  }
+
+  if (rawMode) {
+    // HTML-escape the marked raw text, then swap markers for <span> tags
+    const escaped = markedRaw
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    viewer.innerHTML =
+      `<div class="md-hint">Raw markdown — highlight text to set or add surr_text.</div>` +
+      `<pre id="raw-pre" style="white-space:pre-wrap;font-family:monospace;font-size:12px;line-height:1.6;margin:0;">${applyMarkers(escaped)}</pre>`;
+  } else {
+    let html = applyMarkers(markdownToHtml(markedRaw));
+    viewer.innerHTML =
+      `<div class="md-hint">Highlight text below — choose to set as main or add as alternative surr_text.</div>` +
+      html;
+  }
+
+  // ── Mouse-up: capture selection, show popup ───────────────────────────────
+  viewer.onmouseup = (e) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const selText = sel.toString().trim();
+    if (!selText) return;
+
+    let start, end;
+
+    if (rawMode) {
+      // Precise offset via Range — works for duplicate values and table cells
+      const pre = document.getElementById("raw-pre");
+      if (!pre) return;
+      const range    = sel.getRangeAt(0);
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(pre);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      start = preRange.toString().length;
+      end   = start + sel.toString().length; // use unsimmed length for accurate end
+    } else {
+      start = raw.indexOf(selText);
+      if (start === -1) return;
+      end = start + selText.length;
+    }
+
+    pendingSelection = { text: selText, start, end };
+    sel.removeAllRanges();
+
+    const popup = document.getElementById("sel-popup");
+    popup.style.left = Math.min(e.clientX + 8, window.innerWidth  - 200) + "px";
+    popup.style.top  = Math.min(e.clientY + 8, window.innerHeight - 110) + "px";
+    popup.classList.add("open");
+    e.stopPropagation();
+  };
+
+  // scroll to first highlight
+  setTimeout(() => {
+    const h = document.querySelector(".highlight");
+    if (h) h.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 300);
+}
+
+async function updateSurrText(annId, text, span) {
+  const ann = annotations.find(a => a.id === annId);
+  if (!ann) return;
+  ann.metadata.surr_text = text;
+  ann.span = [span];
+  ann.match_type = ann.match_type === "manual" ? "manual" : "exact";
+  if (ann.status !== "corrected") ann.status = "corrected";
+
+  await fetch(`/update/${annId}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ surr_text: text, span, match_type: "exact", status: ann.status })
+  });
+
+  renderList();
+  renderMetaPanel(ann);
+  updateSummary();
+  await renderMarkdown(ann);
+}
+
+// ── Selection popup actions ────────────────────────────────────────────────
+function closeSelPopup() {
+  document.getElementById("sel-popup").classList.remove("open");
+  pendingSelection = null;
+}
+
+function applySelectionAsMain() {
+  if (!pendingSelection || !selectedId) { closeSelPopup(); return; }
+  const { text, start, end } = pendingSelection;
+  closeSelPopup();
+  updateSurrText(selectedId, text, [start, end]);
+}
+
+function applySelectionAsAlt() {
+  if (!pendingSelection || !selectedId) { closeSelPopup(); return; }
+  const { text, start, end } = pendingSelection;
+  closeSelPopup();
+  addAltSurrText(selectedId, text, [start, end]);
+}
+
+// ── Alt surr_text management ───────────────────────────────────────────────
+async function addAltSurrText(annId, text, span) {
+  const ann = annotations.find(a => a.id === annId);
+  if (!ann) return;
+  if (!ann.metadata.alt_surr_texts) ann.metadata.alt_surr_texts = [];
+  ann.metadata.alt_surr_texts.push({ surr_text: text, span });
+  if (ann.status === "pending") ann.status = "corrected";
+
+  await fetch(`/update/${annId}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ alt_surr_texts: ann.metadata.alt_surr_texts, status: ann.status })
+  });
+
+  renderList();
+  renderMetaPanel(ann);
+  updateSummary();
+  await renderMarkdown(ann);
+}
+
+async function removeAltSurrText(annId, idx) {
+  const ann = annotations.find(a => a.id === annId);
+  if (!ann || !ann.metadata.alt_surr_texts) return;
+  ann.metadata.alt_surr_texts.splice(idx, 1);
+
+  await fetch(`/update/${annId}`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ alt_surr_texts: ann.metadata.alt_surr_texts })
+  });
+
+  renderMetaPanel(ann);
+  await renderMarkdown(ann);
+}
+
+// ── Simple markdown → HTML ─────────────────────────────────────────────────
+function markdownToHtml(md) {
+  let html = md
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/^#{3}\s+(.+)$/gm, "<h3>$1</h3>")
+    .replace(/^#{2}\s+(.+)$/gm, "<h2>$1</h2>")
+    .replace(/^#{1}\s+(.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+
+  // tables
+  html = html.replace(/((?:^\|.+\|\n?)+)/gm, block => {
+    const rows = block.trim().split("\n").filter(r => !/^\|[-| :]+\|$/.test(r));
+    return "<table>" + rows.map((r, i) => {
+      const cells = r.split("|").slice(1,-1);
+      const tag = i === 0 ? "th" : "td";
+      return "<tr>" + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join("") + "</tr>";
+    }).join("") + "</table>";
+  });
+
+  // paragraphs
+  html = html.replace(/\n{2,}/g, "</p><p>").replace(/^(?!<[htp])/, "<p>") + "</p>";
+  return html;
+}
+
+// ── Summary ────────────────────────────────────────────────────────────────
+function updateSummary() {
+  const total     = annotations.length;
+  const accepted  = annotations.filter(a => a.status === "accepted").length;
+  const corrected = annotations.filter(a => a.status === "corrected").length;
+  const rejected  = annotations.filter(a => a.status === "rejected").length;
+  const pending   = annotations.filter(a => a.status === "pending").length;
+  document.getElementById("summary-bar").innerHTML = `
+    <span>Total: <b>${total}</b></span>
+    <span class="sum-accepted">Accepted: <b>${accepted}</b></span>
+    <span class="sum-corrected">Corrected: <b>${corrected}</b></span>
+    <span class="sum-rejected">Rejected: <b>${rejected}</b></span>
+    <span>Pending: <b>${pending}</b></span>`;
+
+  // update match type chip counts
+  const matchCounts = {};
+  annotations.forEach(a => {
+    matchCounts[a.match_type] = (matchCounts[a.match_type] || 0) + 1;
+  });
+  document.querySelectorAll("#filter-match .chip").forEach(chip => {
+    const label = chip.textContent.replace(/\s*\(\d+\)$/, "").trim();
+    const key   = label.toLowerCase().replace(/\s+/g, "_");
+    const count = matchCounts[key] || 0;
+    chip.textContent = label === "All" ? `All (${total})` : `${label} (${count})`;
+  });
+
+
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+async function exportGroundTruth() {
+  const accepted  = annotations.filter(a => a.status === "accepted").length;
+  const corrected = annotations.filter(a => a.status === "corrected").length;
+  const pending   = annotations.filter(a => a.status === "pending").length;
+
+  if (pending > 0) {
+    const go = confirm(`There are still ${pending} pending annotations. Export anyway?`);
+    if (!go) return;
+  }
+
+  const res  = await fetch("/export");
+  const data = await res.json();
+  alert(`Exported ${data.exported} annotations (${data.accepted} accepted + ${data.corrected} corrected + ${data.rejected} rejected) to ${data.file}`);
+}
+
+// ── Add modal ──────────────────────────────────────────────────────────────
+let mdFilesCache = null;
+
+async function openAddModal() {
+  document.getElementById("add-modal").classList.add("open");
+
+  // clear all fields
+  document.getElementById("new-pgs").value = "";
+  document.getElementById("new-or").value = "";
+  document.getElementById("new-section").value = "";
+  document.getElementById("new-subsection").value = "";
+  document.getElementById("new-note").value = "";
+  document.getElementById("new-surr").value = "";
+  document.getElementById("new-doctype").value = "main";
+
+  // populate PGS ID datalist: manual ones first, then LLM ones
+  const manualPgs = [...new Set(annotations.filter(a => a.match_type === "manual").map(a => a.metadata.pgs_id).filter(Boolean))].sort();
+  const otherPgs  = [...new Set(annotations.filter(a => a.match_type !== "manual").map(a => a.metadata.pgs_id).filter(Boolean))].sort().filter(p => !manualPgs.includes(p));
+  const datalist = document.getElementById("pgs-suggestions");
+  datalist.innerHTML = [...manualPgs, ...otherPgs].map(p => `<option value="${p}">`).join("");
+
+  // load md files if not cached
+  if (!mdFilesCache) {
+    const res = await fetch("/md-files");
+    mdFilesCache = await res.json();
+  }
+  const pmcEl = document.getElementById("new-pmc");
+  pmcEl.innerHTML = '<option value="">Select PMCID...</option>' +
+    mdFilesCache.pmcids.map(p => `<option value="${p}">${p}</option>`).join("");
+  document.getElementById("new-file").innerHTML = '<option value="">Select file...</option>';
+}
+
+function updateFileOptions() {
+  const pmcid = document.getElementById("new-pmc").value;
+  const fileEl = document.getElementById("new-file");
+  if (!pmcid || !mdFilesCache) {
+    fileEl.innerHTML = '<option value="">Select file...</option>';
+    return;
+  }
+  const files = mdFilesCache.files[pmcid] || [];
+  fileEl.innerHTML = '<option value="">Select file...</option>' +
+    files.map(f => `<option value="${f}">${f}</option>`).join("");
+}
+function closeAddModal() { document.getElementById("add-modal").classList.remove("open"); }
+
+// Close selection popup when the user starts a new click outside it.
+// Must be mousedown (not click) — click fires immediately after the mouseup
+// that opened the popup, which would close it before the user sees it.
+document.addEventListener("mousedown", (e) => {
+  const popup = document.getElementById("sel-popup");
+  if (popup && popup.classList.contains("open") && !popup.contains(e.target)) {
+    closeSelPopup();
+  }
+});
+
+async function submitNewAnnotation() {
+  const pmcid    = document.getElementById("new-pmc").value;
+  const file_name= document.getElementById("new-file").value;
+  const pgs_id   = document.getElementById("new-pgs").value.trim();  // required text input
+  if (!pgs_id) { alert("Please enter a PGS ID."); return; }
+  if (!pmcid || pmcid === "") { alert("Please select a PMCID."); return; }
+  if (!file_name || file_name === "") { alert("Please select a file name."); return; }
+  const payload = {
+    pgs_id:     document.getElementById("new-pgs").value.trim(),
+    or_value:   document.getElementById("new-or").value.trim(),
+    pmcid:      pmcid,
+    file_name:  file_name,
+    doc_type:   document.getElementById("new-doctype").value,
+    section:    document.getElementById("new-section").value.trim(),
+    subsection: document.getElementById("new-subsection").value.trim(),
+    note:       document.getElementById("new-note").value.trim(),
+    surr_text:  document.getElementById("new-surr").value.trim(),
+  };
+  const res = await fetch("/add", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const ann = await res.json();
+  annotations.push(ann);
+  populateDropdowns();
+  renderList();
+  updateSummary();
+  closeAddModal();
+  selectAnnotation(ann.id);
+}
+</script>
+</body>
+</html>
