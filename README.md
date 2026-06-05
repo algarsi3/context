@@ -173,7 +173,7 @@ find_fuzzy_span(norm_text, norm_map, snippet,
 
 Runs only if both exact and normalised matching failed. This stage handles cases where the LLM's surrounding text differs from the document in ways that go beyond punctuation and spacing — missing words, attached punctuation changing tokenisation, minor paraphrasing, or PDF extraction artefacts.
 
-**Guard:** if the normalised snippet has more than `FUZZY_MAX_WORDS = 80` words, the function returns `None` immediately without searching. Very long snippets (full table sections, extended passages) are not suitable for fuzzy matching: the search would be slow and the results unreliable.
+**Guard:** if the normalised snippet has more than `FUZZY_MAX_WORDS = 200` words, the function returns `None` immediately without searching. Very long snippets (full table sections, extended passages) are not suitable for fuzzy matching: the search would be slow and the results unreliable.
 
 **Algorithm — character 4-gram Jaccard similarity:**
 
