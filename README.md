@@ -8,7 +8,7 @@ Version 2.0 — April 2026
 
 The Annotation Validation Tool is a local web application built with FastAPI (Python backend) and plain HTML/CSS/JavaScript (frontend). It is designed to allow a researcher to validate, correct, and curate annotations produced by a large language model (LLM) from scientific literature.
 
-These annotations consist of metadata values (Odds Ratios, OR) that are identified or extracted from article documents (main text or supplementary material), together with location information: section, subsection, table number, and a surrounding text passage (`surr_text`) that locates the value in the document.
+These annotations consist of context-sensitive extracted data values (such as Odds Ratios, OR) that are identified or extracted from article documents (main text or supplementary material), together with location information: section, subsection, table number, and a surrounding text passage (`surr_text`) that locates the value in the document.
 
 The tool takes as input a raw JSONL file containing the LLM output, automatically locates and highlights the surrounding text in the corresponding Markdown source files, and provides a browser-based interface for reviewing and correcting each annotation. The final validated output (ground truth) can be exported as a flat JSONL file ready for downstream analysis.
 
@@ -18,10 +18,10 @@ The tool takes as input a raw JSONL file containing the LLM output, automaticall
 - Automatically compute character-level spans for surrounding text in Markdown files using a three-stage matching pipeline (exact → normalised → fuzzy)
 - Visualise annotations highlighted inside the rendered Markdown document
 - Accept, reject, or correct annotations individually
-- Edit metadata fields inline (OR value, doc type, section, subsection)
+- Edit metadata fields inline (extracted value, doc type, section, subsection)
 - Correct surrounding text by mouse-highlighting directly in the document
 - Add new annotations manually
-- Filter annotations by status, match type, PGS ID, and PMCID
+- Filter annotations by status, match type, relevant identifiers (e.g., PGS ID and PMCID)
 - Save progress automatically per JSONL file and restore on reload
 - Export accepted, corrected, and rejected annotations as a flat JSONL ground truth file
 
@@ -203,11 +203,6 @@ Steps:
    - Return `[start_orig, end_orig]`
 7. Otherwise return `None`.
 
-**Why Jaccard and not ratio-based similarity?** Jaccard is set-based: it counts unique shared 4-grams divided by unique total 4-grams. This means:
-- Common words like "the" produce few unique 4-grams (`"the "`, `" the"`) and contribute little to the score
-- Rare content tokens like `"1.45"` or `"copd"` produce distinctive 4-grams that strongly anchor the match to the right location
-- Attached punctuation (`"(OR"` vs `"OR"`) differs by only 1–2 grams, not a whole token
-
 **Threshold:** `FUZZY_THRESHOLD = 0.30`. This is a Jaccard threshold (not a ratio), so 0.30 means the intersection must be at least 30% of the union of unique 4-grams. Empirically this is appropriate for scientific text where content words are distinctive.
 
 **Performance:** snippet 4-grams are precomputed once. Each window comparison is O(L) where L is the window character length (set intersection of precomputed vs freshly computed 4-grams). For a typical document (~10 000 doc tokens) and a 30-word snippet, the sliding window completes in well under a second.
@@ -333,9 +328,7 @@ For `not_found` and `no_surr_text` matches, a yellow box shows the LLM's origina
 | `match_type` | freshly computed match type from the last load |
 | `alt_surr_texts` | cleared |
 
-This means that any correction made by the validator — a manual re-highlight, an edited OR value, a corrected section name — is completely undone. The annotation returns to its pre-edit baseline.
-
-**Implementation note:** at load time, the backend stores an `"original"` snapshot dict alongside each annotation in memory. This snapshot captures the JSONL field values and the span/match_type computed by the matching pipeline at that load. The snapshot is held only in memory and is never written to the session file, so it adds no disk overhead. When `/reset/{ann_id}` is called, the backend copies the snapshot values back into the annotation and saves the session. The cost of a reset is negligible (a few field copies and a session write).
+This means that any correction made by the validator — a manual re-highlight, an edited data value, a corrected section name — is completely undone. The annotation returns to its pre-edit baseline.
 
 ---
 
@@ -346,7 +339,9 @@ The left panel provides four independent filters that can be combined:
 - **Status:** All / Pending / Accepted / Corrected / Rejected
 - **Match type:** All / Exact / Exact multiple / Normalized / Fuzzy / Not found / No surr text / Manual / File not found — with counts per type shown in brackets. The counts across all match type chips always sum to the total number of loaded annotations.
 - **PGS ID dropdown:** filter to a specific polygenic score model
-- **PMCID dropdown:** filter to a specific paper
+- **PMCID dropdown:** filter to a specific publication (groups documents, e.g., main and supplementary)
+
+  Note: identifiers can be customized for any specific domain.
 
 ---
 
@@ -361,7 +356,7 @@ The following fields are editable by clicking on them in the metadata panel:
 - **Section:** click to open a text input.
 - **Subsection:** click to open a text input.
 
-PGS ID, confidence, and match type are read-only.
+PGS ID identifier, confidence, and match type are read-only.
 
 ### 10.2 Correcting surrounding text
 
@@ -450,12 +445,11 @@ Exporting multiple times overwrites the previous file for the same JSONL.
 
 - Start by filtering to `not_found` and `no_surr_text` — these require the most attention.
 - Filter to `fuzzy` next and verify each highlight against the purple LLM-text box.
-- Use the PGS ID filter to work through all annotations for one model at a time.
 - Always click **Load** after restarting the tool to restore your session.
 
 ### Known limitations
 
-- **Very long `surr_text` (> 80 words):** fuzzy matching is skipped for these. They are likely full table sections or extended passages that cannot be reliably located by similarity; they remain `not_found` and must be corrected manually.
+- **Very long `surr_text` (> 200 words):** fuzzy matching is skipped for these. They are likely full table sections or extended passages that cannot be reliably located by similarity; they remain `not_found` and must be corrected manually.
 - **Table highlighting:** selecting text across multiple rows of a rendered Markdown table may not work perfectly in all browsers. Use the raw Markdown view in that case.
 - **Single-user, local use only.** The tool is not intended for multi-user or networked deployment.
 - **Markdown rendering:** the viewer renders a simplified version of the Markdown. Complex formatting (nested lists, footnotes) may not render perfectly, but the raw text and highlighting remain accurate.
