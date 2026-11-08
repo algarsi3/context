@@ -49,7 +49,7 @@ annotation-tool/
     index.html       — Full frontend: UI, styles, JavaScript
   data/
     llm_results/     — Drop JSONL input files here
-    output/
+    pmc_files/
       md_standard/   — Markdown source files, organised as <pmcid>/<filename>.md
     ground_truth/    — Exported ground truth files
     session_*.json   — Auto-saved session per JSONL file
