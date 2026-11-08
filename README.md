@@ -68,15 +68,17 @@ where `<md_root>` is the path entered in the load panel.
 
 ## 3. Launching the Tool
 
-A double-click launcher is available on the Desktop: **Launch Annotation Tool**. Double-clicking it opens a terminal and starts the server. Once the terminal shows `Application startup complete`, open a browser and navigate to:
+For launching the tool, open a terminal inside `annotation-tool` folder and run the following command to start the server: 
+```
+venv/bin/uvicorn app.main:app --port 8080
+```
 
+Once the terminal shows `Application startup complete`, open a browser and navigate to:
 ```
 http://127.0.0.1:8080
 ```
 
 To stop the tool, press `Ctrl+C` in the terminal window.
-
-> **Note:** if you are connected to a VPN, the launcher automatically frees port 8080 before starting to avoid conflicts.
 
 ---
 
