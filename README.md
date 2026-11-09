@@ -68,9 +68,23 @@ where `<md_root>` is the path entered in the load panel.
 
 ## 3. Launching the Tool
 
-For launching the tool, open a terminal inside `annotation-tool` folder and run the following command to start the server: 
+For launching the tool, open a terminal inside `annotation-tool` folder and run the following commands:
+
+1. Create virtual environment
 ```
-venv/bin/uvicorn app.main:app --port 8080
+python3 -m venv annotation-tool
+```
+2. Activate it with
+```
+source annotation-tool/bin/activate
+```
+3. Install dependencies
+```
+pip install -r requirements.txt
+```
+5. Run the app form the folder containing the app folder
+```
+uvicorn app.main:app --port 8080
 ```
 
 Once the terminal shows `Application startup complete`, open a browser and navigate to:
